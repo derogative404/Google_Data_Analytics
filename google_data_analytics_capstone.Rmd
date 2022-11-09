@@ -1,0 +1,216 @@
+---
+title: "Cyclistic Bike Share Analysis Project"
+author: "Sebastian Thomas"
+date: '2022-07-07'
+output: pdf_document
+---
+# Scenario
+Cyclistic is a bike-share company based in Chicago whose bikes are used by customers to ride for leisure (casual riders) and also to commute to work each day (annual members). The director of marketing believes the company’s future success depends on maximizing the number of annual memberships. Therefore, Cyclists' team want to conduct a thorough analysis to understand how casual and annual riders differ. From the insights they derive, they plan to implement a new marketing strategy to convert casual riders into annual members.
+
+# Business Task
+The task is to spot differences in how casual riders and annual members use Cyclistic’s services.
+This analysis would be useful for Cyclistic in determining whether converting casual riders into annual members would contribute towards its future success.
+
+# Key Stakeholders
+There are many stakeholders involved In this project, including:
+* Cyclistic’s executive team
+* Lily Moreno
+* Cyclistic’s Marketing Analytics team
+* Cyclistic customers who have either single-ride passes, full-day passes or annual memberships
+
+# Overview of the data used
+The data sources used for this task come from a public data repository, [https://divvy-tripdata.s3.amazonaws.com/index.html](URL 'divvy-tripdata'). For the case study, I have chosen to use the historical data between June 2021 and May 2022. It contains the following field names:
+
+* Ride_id – unique identifier for the trip
+* Rideable_type – The type of bike that was used
+* Started_at – The time and date the rider took the bike for the trip
+* Ended_at - The time and date the rider finished the trip with the bike
+* Start_station_name – The station from which the bike was picked up from
+* Start_station_id – unique identifier for the start station
+* end_station_name - The station from which the bike was kept after the trip
+* End_station_id – unique identifier for the end station
+* Start_lat – latitude of the start station
+* Start longitude – longitude of the start station
+* End_lat – latitude of the end station
+* End_longitude – longitude of the end station
+* Member_casual – field to identify is the rider for a trip is a casual rider or part of the annual membership program
+* Ride_Length – Amount of time a Cyclistic bike was used for the ride
+* Day_of_Week – day of the week on which the ride was taken
+
+This dataset has over 90,000 records on rides for 12 months, which means we have enough data to deem this dataset reliable. A third party, Motivate International Inc, has put together this dataset. For this reason, it would have a low level of originality. Many parameters are included, and since most of them are self-explanatory, the dataset seems to be quite comprehensive. It is also relatively current as it has been collected within 2021 but is not cited well as it is from a third-party source for whom minimal information is available.
+In regards to addressing licensing, this dataset has been provided with royalty-free and non-exclusive access 
+Despite its drawbacks from being from a third party, I believe its reliability, comprehensivity, and currency outweigh the disadvantages and make it a recommendable source.
+
+# Tools used to conduct analysis on the data
+The tools that will be used to process and analyse the data include the following:
+
+* RStudio & R
+  + These two tools would be beneficial in handling all the data in bulk. It would allow easy manipulation of the large data contained within each of the CSV files. Although Microsoft Excel would also be a good option, its inability to handle very large sets of data would slow down the process of making modifications to data.
+* Tableu
+  + This would be useful in visualising the cleaned data from RStudio. Developing multiple plots, determining overall trends in the data and displaying them on a dashboard would some of the benefits from its use.
+  
+# Processing data in RStudio with R and cleaning the data
+1. Unzipped the data files, placed them in an appropriate folder and renamed them for easier readability
+2. Loading in the libraries that would be useful
+```{r loading libraries}
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(dplyr)
+library(readr)
+library(janitor)
+library(tidyr)
+library(here)
+library(skimr)
+library(hms)
+library(hydroTSM)
+library(timeDate)
+library(chron)
+library(data.table)
+library(Rmisc)
+library(s20x)
+library(leaflet)
+library(sp)
+```
+
+3. Loading in the data files and adding them to one data frame for easier access
+```{r loading data}
+# Source: https://www.r-bloggers.com/2011/06/merge-all-files-in-a-directory-using-r-into-a-single-dataframe/
+# Getting a list of data files in the directory
+setwd("~/google_data_analytics_data/data/")
+file_list <- list.files()
+all_data_df = data.frame()
+
+#looping through the list of data files
+for (file in file_list){
+  # appending the data from the files to the dataframe
+  temp_df <-read.csv(file, header=TRUE, sep=",")
+  all_data_df<-rbind(all_data_df, temp_df)
+  rm(temp_df)
+
+}
+
+# Viewing the data
+head(all_data_df)
+```
+4. Ensuring that the names of the column headers are unique and have a consistent naming convention
+```{r}
+all_data_df <- clean_names(all_data_df)
+head(all_data_df)
+```
+5. Finding any duplicate ride_ids. 
+```{r}
+sum(duplicated(all_data_df$ride_id))
+```
+
+6. Check for NA (blank) values
+```{r}
+sum(is.na(all_data_df$ride_id))
+```
+
+7. Converting the started at and ended at fields from character to datetime
+```{r}
+all_data_df$started_at <- ymd_hms(all_data_df$started_at)
+all_data_df$ended_at <- ymd_hms(all_data_df$ended_at)
+head(all_data_df)
+```
+8. Adding a calculated field to the data frame to calculate the duration for each ride. Putting this data in the form of HH:MM:SS
+```{r}
+all_data_df <- mutate(all_data_df, ride_length=as_hms(ended_at-started_at))
+head(all_data_df)
+```
+9. Adding a calculated field to the data frame to find the day of the week at which each ride started.
+```{r}
+all_data_df <- mutate(all_data_df, day_of_week=weekdays(as.Date(all_data_df$started_at)))
+head(all_data_df)
+```
+
+10. Checking if there are any negative ride lengths
+```{r}
+all_data_df[all_data_df$ride_length < 0, ]
+```
+From above, it is evident that a 139 rows of data have over illogical/negative ride lengths. This could have possible been caused due to a system error. For the analysis, we will remove these.
+```{r}
+all_data_df <- subset(all_data_df, ride_length >= 0) 
+head(all_data_df)
+```
+
+11. Checking if there are any null values in the day_of_week column
+```{r}
+unique(all_data_df$day_of_week)
+```
+```{r}
+# Arranging the days of the week in order
+all_data_df$day_of_week <- factor(all_data_df$day_of_week, levels= c("Monday", 
+    "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+all_data_df[order(all_data_df$day_of_week), ]
+```
+
+# Conducting Analysis on the data
+1. Find the Season in which each ride occurred
+```{r}
+all_data_df <- mutate(all_data_df, season=time2season(all_data_df$started_at, out.fmt = "seasons"))
+head(all_data_df)
+```
+```{r}
+unique(all_data_df$season)
+```
+2. Finding if any of the dates were public holiday and what were the public holidays
+```{r}
+# Lising of public holidays in the USA
+hlist <- c("USNewYearsDay", "USInaugurationDay", "USMLKingsBirthday", "USLincolnsBirthday", "USWashingtonsBirthday", "USMemorialDay", "USIndependenceDay", "USLaborDay", "USColumbusDay", "USElectionDay", "USVeteransDay", "USThanksgivingDay", "USChristmasDay", "USCPulaskisBirthday", "USGoodFriday")
+
+# Creating a new field in the data frame to identify if the started date was a public holiday
+all_data_df <- mutate(all_data_df, is_public_holiday=date(started_at) == as.character(holiday(2021:2022,hlist)))
+
+# Creating a new field in the data frame to identify the holiday
+all_data_df <- mutate(all_data_df, which_public_holiday=ifelse(date(started_at) == as.character(holiday(2021:2022,hlist)), hlist, "No public Holiday"))
+head(all_data_df)
+```
+
+```{r}
+unique(all_data_df$is_public_holiday)
+```
+```{r}
+unique(all_data_df$which_public_holiday)
+```
+
+3. Exporting the file for tableau
+```{r}
+fwrite(all_data_df,"google_proj.csv")
+```
+
+# Analysing the data
+1. The average ride length for each of a member vs casual user
+```{r}
+# Splitting dataset according to the member type
+all_data_df_casual <- filter(all_data_df, member_casual == 'casual')
+all_data_df_member <- filter(all_data_df, member_casual == 'member')
+```
+
+```{r}
+# Viewing the mean and confidence intervals of casual riders
+CI(all_data_df_casual$ride_length, ci=0.95)
+```
+
+```{r}
+# Viewing the mean and confidence intervals of members
+CI(all_data_df_member$ride_length, ci=0.95)
+```
+
+From above, we can see that the see average ride length for casual riders was between 1814.80 seconds and 1851.12 seconds. One the other hand, the average ride length of all annaul members is between 788.90 and 784.43 seconds. There is a significantly large difference between the mean values for casual riders and annual members. It suggests that members do not use the service provided by Cyclistic to travel long distances while casual riders do. 
+
+2. Distribution of the number of rides taken by casual riders vs annual members
+```{r}
+ggplot(data=all_data_df, aes(x=factor(day_of_week), fill=member_casual)) + geom_bar(position=position_dodge()) + theme_minimal() + labs(title = "Number of rides per day per member", x="day of week", y="Number of rides")
+```
+
+From the plot above, we can see that casual riders usually use Cyclistic's services more in the weekends than in the weekdays. On the other hand, annual members use the services more on the weekdays than on the weekends. This, in addition to the previous anlysis in 1. where annual members were riding shorter distances compared to causal riders, suggests that annual members could potentially be using the services to travel for work purposes to places nearby unlike casual riders.
+
+3. Location analysis by member type
+```{r}
+coordinates(all_data_df) <- ~start_lng+start_lat
+leaflet(all_data_df) %>% addMarkers() %>% addTiles()
+```
+
+

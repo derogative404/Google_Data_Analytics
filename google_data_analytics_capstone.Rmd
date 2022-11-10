@@ -77,7 +77,7 @@ library(sp)
 ```{r loading data}
 # Source: https://www.r-bloggers.com/2011/06/merge-all-files-in-a-directory-using-r-into-a-single-dataframe/
 # Getting a list of data files in the directory
-setwd("~/google_data_analytics_data/data/")
+setwd("~/google_proj/Google_Data_Analytics/data")
 file_list <- list.files()
 all_data_df = data.frame()
 
